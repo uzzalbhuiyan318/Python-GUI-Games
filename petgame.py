@@ -1,5 +1,33 @@
 from tkinter import HIDDEN, NORMAL, Tk, Canvas
 
+
+def start_move(event):
+    # Store the initial position when the mouse is pressed
+    c.data = {'x': event.x, 'y': event.y}
+
+    # Trigger rose creation with a delay from the starting point of the event
+    root.after(500, lambda: create_rose_with_transition(event))  # Delay for 500ms
+
+
+def move_pet(event):
+    # Calculate the distance moved and update the position of the pet
+    dx = event.x - c.data['x']
+    dy = event.y - c.data['y']
+
+    # Move the entire pet (all components)
+    for part in pet_parts:
+        c.move(part, dx, dy)
+
+    # Update the initial position
+    c.data['x'] = event.x
+    c.data['y'] = event.y
+
+
+def stop_move(event):
+    # After releasing the mouse, we don't need to create a rose
+    c.data = None
+
+
 def toggle_eyes():
     current_color = c.itemcget(eye_left, 'fill')
     new_color = c.body_color if current_color == 'white' else 'white'
@@ -10,69 +38,68 @@ def toggle_eyes():
     c.itemconfigure(eye_left, fill=new_color)
     c.itemconfigure(eye_right, fill=new_color)
 
+
 def blink():
     toggle_eyes()
     root.after(250, toggle_eyes)
     root.after(3000, blink)
 
-def toggle_pupils():
-    if not c.eyes_crossed:
-        c.move(pupil_left, 10, -5)
-        c.move(pupil_right, -10, -5)
-        c.eyes_crossed = True
-    else:
-        c.move(pupil_left, -10, 5)
-        c.move(pupil_right, 10, 5)
-        c.eyes_crossed = False
 
-def toggle_tongue():
-    if not c.tongue_out:
-        c.itemconfigure(tongue_tip, state=NORMAL)
-        c.itemconfigure(tongue_main, state=NORMAL)
-        c.tongue_out = True
-    else:
-        c.itemconfigure(tongue_tip, state=HIDDEN)
-        c.itemconfigure(tongue_main, state=HIDDEN)
-        c.tongue_out = False
+def create_rose_with_transition(event):
+    # Get the position where the mouse event started
+    nose_x = event.x
+    nose_y = event.y
 
-def cheeky(event):
-    toggle_tongue()
-    toggle_pupils()
-    hide_happy(event)
-    root.after(1000, toggle_tongue)
-    root.after(1000, toggle_pupils)
-    return
+    # Initialize stem and rose parts
+    stem = c.create_line(nose_x, nose_y + 50, nose_x, nose_y + 50, width=3, fill='green')  # Start small
+    rose = c.create_oval(nose_x, nose_y, nose_x, nose_y, outline='red', fill='red')  # Tiny red dot
+    c.rose_parts.append([stem, rose])
 
-def show_happy(event):
-    if (20 <= event.x and event.x <= 350) and (20 <= event.y and event.y <= 350):
-        c.itemconfigure(cheek_left, state=NORMAL)
-        c.itemconfigure(cheek_right, state=NORMAL)
-        c.itemconfigure(mouth_happy, state=NORMAL)
-        c.itemconfigure(mouth_normal, state=HIDDEN)
-        c.itemconfigure(mouth_sad, state=HIDDEN)
-        c.happy_level = 10
-    return
+    # Animate the transition
+    def grow_rose(step=0):
+        if step <= 20:  # Limit growth steps
+            # Gradually grow the stem
+            c.coords(stem, nose_x, nose_y + 50 - step * 2.5, nose_x, nose_y + 50)
+            # Gradually enlarge the rose
+            c.coords(rose, nose_x - step, nose_y - step, nose_x + step, nose_y + step)
+            root.after(20, lambda: grow_rose(step + 1))  # Recursively grow the rose
 
-def hide_happy(event):
-    c.itemconfigure(cheek_left, state=HIDDEN)
-    c.itemconfigure(cheek_right, state=HIDDEN)
-    c.itemconfigure(mouth_happy, state=HIDDEN)
-    c.itemconfigure(mouth_normal, state=NORMAL)
-    c.itemconfigure(mouth_sad, state=HIDDEN)
-    return
+    grow_rose()
 
-def sad():
-    if c.happy_level == 0:
-        c.itemconfigure(mouth_happy, state=HIDDEN)
-        c.itemconfigure(mouth_normal, state=HIDDEN)
-        c.itemconfigure(mouth_sad, state=NORMAL)
-    else:
-        c.happy_level -= 1
-    root.after(5000, sad)
+
+def center_pet():
+    # Center the pet on the canvas
+    canvas_width = c.winfo_width()
+    canvas_height = c.winfo_height()
+
+    # Calculate the offset to center the pet
+    pet_bbox = c.bbox(body)
+    pet_width = pet_bbox[2] - pet_bbox[0]
+    pet_height = pet_bbox[3] - pet_bbox[1]
+
+    dx = (canvas_width - pet_width) // 2 - pet_bbox[0]
+    dy = (canvas_height - pet_height) // 2 - pet_bbox[1]
+
+    # Move the entire pet to the center
+    for part in pet_parts:
+        c.move(part, dx, dy)
+
+
+def resize_canvas(event):
+    # Adjust the pet's position when the canvas size changes
+    center_pet()
+
 
 root = Tk()
-c = Canvas(root, width=400, height=400)
-c.configure(bg='#85C1AE', highlightthickness=0)
+root.title("Interactive Pet with a Rose")
+
+# Set up the window size and behavior
+root.geometry("800x600")
+root.resizable(True, True)  # Allow resizing in both directions
+root.configure(bg='#2F4F4F')  # Dark Slate Gray background for a professional look
+
+# Create the canvas and configure it to fill the window
+c = Canvas(root, bg='#2F4F4F', highlightthickness=0)
 c.body_color = '#1F8A70'
 
 # Body
@@ -105,18 +132,31 @@ tongue_tip = c.create_oval(170, 285, 230, 300, outline='red', fill='red', state=
 cheek_left = c.create_oval(70, 180, 120, 230, outline='pink', fill='pink', state=HIDDEN)
 cheek_right = c.create_oval(280, 180, 330, 230, outline='pink', fill='pink', state=HIDDEN)
 
-c.pack()
+# Add all parts of the pet to a list for easy manipulation
+pet_parts = [body, ear_left, ear_right, foot_left, foot_right, 
+             eye_left, pupil_left, eye_right, pupil_right, 
+             mouth_normal, mouth_happy, mouth_sad, 
+             tongue_main, tongue_tip, cheek_left, cheek_right]
 
-c.bind('<Motion>', show_happy)
-c.bind('<Leave>', hide_happy)
-c.bind('<Double-1>', cheeky)
+# Track roses and pet interaction state
+c.rose_parts = []
 
-# Variables
-c.happy_level = 10
-c.eyes_crossed = False
-c.tongue_out = False
+# Pack the canvas to fill the window
+c.pack(fill="both", expand=True)
 
-# Functions to start animations
+# Update the window and center the pet
+root.update_idletasks()  # Ensure canvas dimensions are updated
+center_pet()  # Place the pet at the center
+
+# Bind window resize event to adjust canvas size
+root.bind("<Configure>", resize_canvas)
+
+# Event binding for mouse interactions
+c.bind('<ButtonPress-1>', start_move)  # Start moving when left mouse is pressed
+c.bind('<B1-Motion>', move_pet)  # Move the pet while dragging
+c.bind('<ButtonRelease-1>', stop_move)  # Stop moving when mouse button is released
+
+# Start animations
 root.after(1000, blink)
-root.after(5000, sad)
+
 root.mainloop()
